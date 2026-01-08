@@ -4,6 +4,7 @@
 // @version      4.2.0
 // @description  导出 Linux.do 帖子到 Obsidian（支持 Local REST API、图片处理、Callout 格式）
 // @author       ilvsx
+// @license      MIT
 // @match        https://linux.do/t/*
 // @match        https://linux.do/t/topic/*
 // @grant        GM_setValue
