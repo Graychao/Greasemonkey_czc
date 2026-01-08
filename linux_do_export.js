@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Linux.do 帖子导出到 Obsidian
 // @namespace    https://linux.do/
-// @version      4.1.2
+// @version      4.2.0
 // @description  导出 Linux.do 帖子到 Obsidian（支持 Local REST API、图片处理、Callout 格式）
 // @author       ilvsx
 // @match        https://linux.do/t/*
@@ -63,34 +63,95 @@
     // Emoji 名称到 Unicode 映射
     // -----------------------
     const EMOJI_MAP = {
-        // 表情
-        smile: "😊", smiley: "😃", grinning: "😀", laughing: "😆", blush: "😊",
-        wink: "😉", heart_eyes: "😍", kissing_heart: "😘", stuck_out_tongue: "😛",
-        thinking: "🤔", neutral_face: "😐", expressionless: "😑", unamused: "😒",
-        sweat: "😓", pensive: "😔", confused: "😕", confounded: "😖",
-        kissing: "😗", disappointed: "😞", worried: "😟", angry: "😠", rage: "😡",
-        cry: "😢", sob: "😭", joy: "😂", rofl: "🤣", slightly_smiling_face: "🙂",
-        upside_down_face: "🙃", rolling_eyes: "🙄", grimacing: "😬", lying_face: "🤥",
-        zipper_mouth_face: "🤐", money_mouth_face: "🤑", nerd_face: "🤓",
-        sunglasses: "😎", clown_face: "🤡", cowboy_hat_face: "🤠", hugs: "🤗",
-        smirk: "😏", relieved: "😌", sleeping: "😴", drooling_face: "🤤",
-        sleepy: "😪", mask: "😷", face_with_thermometer: "🤒", nauseated_face: "🤢",
-        sneezing_face: "🤧", innocent: "😇", face_with_cowboy_hat: "🤠",
+        // 笑脸表情
+        grinning_face: "�", smiley: "😃", grinning_face_with_smiling_eyes: "�", grin: "�",
+        laughing: "�", sweat_smile: "😅", rofl: "🤣", joy: "😂",
+        slightly_smiling_face: "🙂", upside_down_face: "🙃", melting_face: "🫠",
+        wink: "😉", blush: "😊", innocent: "😇",
+        smiling_face_with_three_hearts: "🥰", heart_eyes: "😍", star_struck: "🤩",
+        face_blowing_a_kiss: "😘", kissing_face: "😗", smiling_face: "☺️",
+        kissing_face_with_closed_eyes: "😚", kissing_face_with_smiling_eyes: "�",
+        smiling_face_with_tear: "🥲",
+        // 舌头表情
+        face_savoring_food: "😋", face_with_tongue: "😛", winking_face_with_tongue: "😜",
+        zany_face: "🤪", squinting_face_with_tongue: "�", money_mouth_face: "🤑",
+        // 手势类表情
+        hugs: "🤗", face_with_hand_over_mouth: "🤭", face_with_open_eyes_and_hand_over_mouth: "🫢",
+        face_with_peeking_eye: "�", shushing_face: "🤫", thinking: "�🤔", saluting_face: "🫡",
+        // 嘴部表情
+        zipper_mouth_face: "🤐", face_with_raised_eyebrow: "🤨", neutral_face: "😐",
+        expressionless: "😑", expressionless_face: "😑", face_without_mouth: "�",
+        dotted_line_face: "🫥", face_in_clouds: "😶‍🌫️",
+        // 斜眼表情
+        smirk: "�", smirking_face: "😏", unamused: "�", unamused_face: "�",
+        roll_eyes: "🙄", rolling_eyes: "�", grimacing: "😬", face_exhaling: "�‍💨",
+        lying_face: "🤥", shaking_face: "🫨",
+        head_shaking_horizontally: "�‍↔️", head_shaking_vertically: "�‍↕️",
+        // 疲惫表情
+        relieved: "😌", relieved_face: "😌", pensive: "😔", pensive_face: "�",
+        sleepy: "�", sleepy_face: "�", drooling_face: "�", sleeping: "😴", sleeping_face: "�",
+        face_with_bags_under_eyes: "🫩",
+        // 生病表情
+        mask: "😷", face_with_medical_mask: "�", face_with_thermometer: "🤒",
+        face_with_head_bandage: "🤕", nauseated_face: "🤢", face_vomiting: "🤮",
+        sneezing_face: "🤧", hot_face: "🥵", cold_face: "🥶", woozy_face: "�",
+        face_with_crossed_out_eyes: "😵", face_with_spiral_eyes: "😵‍💫", exploding_head: "🤯",
+        // 帽子和眼镜表情
+        cowboy_hat_face: "🤠", face_with_cowboy_hat: "🤠", partying_face: "�", disguised_face: "�",
+        sunglasses: "😎", smiling_face_with_sunglasses: "😎", nerd_face: "🤓", face_with_monocle: "�",
+        // 困惑表情
+        confused: "😕", face_with_diagonal_mouth: "🫤", worried: "😟",
+        slightly_frowning_face: "🙁", frowning: "☹️",
+        // 惊讶表情
+        open_mouth: "�", hushed_face: "😯", astonished_face: "😲", flushed_face: "�",
+        distorted_face: "🫨", pleading_face: "🥺", face_holding_back_tears: "�",
+        frowning_face_with_open_mouth: "😦", anguished_face: "�",
+        // 恐惧表情
+        fearful: "�", anxious_face_with_sweat: "😰", sad_but_relieved_face: "😥",
+        cry: "😢", sob: "😭", scream: "😱",
+        confounded: "😖", confounded_face: "😖", persevering_face: "😣",
+        disappointed: "😞", disappointed_face: "😞", sweat: "�", downcast_face_with_sweat: "😓",
+        weary_face: "😩", tired_face: "😫", yawning_face: "�",
+        // 愤怒表情
+        face_with_steam_from_nose: "�", enraged_face: "😡", angry: "😠", rage: "😡",
+        face_with_symbols_on_mouth: "🤬",
+        smiling_face_with_horns: "�", angry_face_with_horns: "�",
+        // 骷髅和怪物
+        skull: "💀", skull_and_crossbones: "☠️", poop: "💩", clown_face: "🤡",
+        ogre: "�", goblin: "👺", ghost: "👻", alien: "👽", alien_monster: "�", robot: "🤖",
+        // 猫咪表情
+        grinning_cat: "😺", grinning_cat_with_smiling_eyes: "😸", joy_cat: "😹",
+        smiling_cat_with_heart_eyes: "�", cat_with_wry_smile: "�", kissing_cat: "�",
+        weary_cat: "🙀", crying_cat: "😿", pouting_cat: "😾",
+        // 三猴子
+        see_no_evil_monkey: "�", hear_no_evil_monkey: "�", speak_no_evil_monkey: "🙊",
+        // 心形类
+        love_letter: "�", heart_with_arrow: "💘", heart_with_ribbon: "�",
+        sparkling_heart: "�", growing_heart: "💗", beating_heart: "💓",
+        revolving_hearts: "�", two_hearts: "💕", heart_decoration: "💟",
+        heart_exclamation: "❣️", broken_heart: "💔", heart_on_fire: "❤️‍🔥", mending_heart: "❤️‍🩹",
+        heart: "❤️", pink_heart: "🩷", orange_heart: "🧡", yellow_heart: "💛",
+        green_heart: "💚", blue_heart: "💙", light_blue_heart: "🩵", purple_heart: "💜",
+        brown_heart: "🤎", black_heart: "�", grey_heart: "🩶", white_heart: "🤍",
+        // 符号类
+        kiss_mark: "💋", "100": "💯", anger_symbol: "💢", fight_cloud: "💨",
+        collision: "�", dizzy: "💫", sweat_droplets: "💦", sweat_drops: "�",
+        dashing_away: "💨", dash: "💨", hole: "🕳️",
+        speech_balloon: "💬", eye_in_speech_bubble: "👁️‍🗨️", left_speech_bubble: "�️",
+        right_anger_bubble: "🗯️", thought_balloon: "💭", zzz: "💤",
+        // 兼容旧版本的别名
+        smile: "😊", grinning: "😀", kissing: "😗", kissing_heart: "�",
+        stuck_out_tongue: "😛", heartpulse: "💗", heartbeat: "💓", cupid: "💘", gift_heart: "💝",
         // 手势
         thumbsup: "👍", thumbsdown: "👎", "+1": "👍", "-1": "👎",
         ok_hand: "👌", punch: "👊", fist: "✊", v: "✌️", wave: "👋",
         raised_hand: "✋", open_hands: "👐", muscle: "💪", pray: "🙏",
         point_up: "☝️", point_up_2: "👆", point_down: "👇", point_left: "👈", point_right: "👉",
-        clap: "👏", raised_hands: "🙌", handshake: "🤝",
-        // 心形
-        heart: "❤️", yellow_heart: "💛", green_heart: "💚", blue_heart: "💙",
-        purple_heart: "💜", broken_heart: "💔", sparkling_heart: "💖",
-        heartpulse: "💗", heartbeat: "💓", two_hearts: "💕", revolving_hearts: "💞",
-        cupid: "💘", gift_heart: "💝", heart_decoration: "💟",
-        // 符号
+        clap: "👏", raised_hands: "�", handshake: "🤝",
+        // 通用符号
         star: "⭐", star2: "🌟", sparkles: "✨", zap: "⚡", fire: "🔥",
-        boom: "💥", sweat_drops: "💦", droplet: "💧", dash: "💨",
-        "100": "💯", check: "✅", white_check_mark: "✅", x: "❌", cross_mark: "❌",
+        boom: "💥", droplet: "💧",
+        check: "✅", white_check_mark: "✅", x: "❌", cross_mark: "❌",
         heavy_check_mark: "✔️", heavy_multiplication_x: "✖️",
         question: "❓", exclamation: "❗", warning: "⚠️", no_entry: "⛔",
         triangular_flag: "🚩", triangular_flag_on_post: "🚩",
@@ -116,7 +177,7 @@
         book: "📖", books: "📚", newspaper: "📰", bookmark: "🔖",
         bulb: "💡", flashlight: "🔦", candle: "🕯️",
         lock: "🔒", unlock: "🔓", key: "🔑",
-        // 其他
+        // 交通与天气
         rocket: "🚀", airplane: "✈️", car: "🚗", bus: "🚌", train: "🚆",
         sun: "☀️", cloud: "☁️", umbrella: "☂️", rainbow: "🌈", snowflake: "❄️",
         clock: "🕐", alarm_clock: "⏰", stopwatch: "⏱️", timer_clock: "⏲️",
@@ -124,7 +185,7 @@
         globe_showing_americas: "🌎", globe_showing_europe_africa: "🌍", globe_showing_asia_australia: "🌏",
         earth_americas: "🌎", earth_africa: "🌍", earth_asia: "🌏",
         bullseye: "🎯", dart: "🎯",
-        head_shaking_horizontally: "🙂‍↔️", head_shaking_vertically: "🙂‍↕️",
+        // 国旗
         cn: "🇨🇳", us: "🇺🇸", jp: "🇯🇵", kr: "🇰🇷", gb: "🇬🇧",
     };
 
