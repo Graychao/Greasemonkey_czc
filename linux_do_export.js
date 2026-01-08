@@ -24,7 +24,7 @@
         RANGE_START: "ld_export_range_start",
         RANGE_END: "ld_export_range_end",
         FILTER_ONLY_OP: "ld_export_filter_only_op",
-        FILTER_ONLY_IMG: "ld_export_filter_only_img",
+        FILTER_IMG: "ld_export_filter_img",
         FILTER_USERS: "ld_export_filter_users",
         FILTER_INCLUDE: "ld_export_filter_include",
         FILTER_EXCLUDE: "ld_export_filter_exclude",
@@ -46,7 +46,7 @@
         rangeStart: 1,
         rangeEnd: 999999,
         onlyOp: false,
-        onlyImg: false,
+        imgFilter: "none",
         users: "",
         include: "",
         exclude: "",
@@ -243,6 +243,11 @@
                 const full = absoluteUrl(src);
                 if (!full) return "";
 
+                // 不导出图片模式：跳过所有非 emoji 图片
+                if (settings.obsidian && settings.obsidian.imgMode === "none") {
+                    return "";
+                }
+
                 const alt = "图片";
 
                 if (settings.obsidian && settings.obsidian.imgMode === "file" && imgMap && imgMap[full]) {
@@ -360,7 +365,7 @@
         inputRangeEnd: null,
 
         chkOnlyOp: null,
-        chkOnlyImg: null,
+        selImgFilter: null,
         inputUsers: null,
         inputInclude: null,
         inputExclude: null,
@@ -449,6 +454,7 @@
         <select id="ld-obs-img-mode" style="flex:1;background:rgba(15,23,42,0.8);color:#e5e7eb;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:6px 10px;font-size:12px;outline:none;">
           <option value="file">保存图片并引用（体积小）</option>
           <option value="base64">内嵌到笔记（单文件）</option>
+          <option value="none">不导出图片（纯文字）</option>
         </select>
       </div>
       <div id="ld-obs-img-dir-wrap" style="display:none;margin-bottom:6px;">
@@ -484,9 +490,14 @@
         <label style="display:flex;align-items:center;gap:4px;color:#cbd5e1;font-size:12px;">
           <input id="ld-only-op" type="checkbox" style="accent-color:#7c3aed;" /> 只看楼主
         </label>
-        <label style="display:flex;align-items:center;gap:4px;color:#cbd5e1;font-size:12px;">
-          <input id="ld-only-img" type="checkbox" style="accent-color:#7c3aed;" /> 只看含图
-        </label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <span style="color:#cbd5e1;font-size:12px;white-space:nowrap;">图片筛选：</span>
+        <select id="ld-img-filter" style="flex:1;background:rgba(15,23,42,0.8);color:#e5e7eb;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:6px 10px;font-size:12px;outline:none;">
+          <option value="none">无（不筛选）</option>
+          <option value="withImg">仅含图楼层</option>
+          <option value="noImg">仅无图楼层</option>
+        </select>
       </div>
       <input id="ld-users" type="text" placeholder="指定用户（逗号分隔）" style="width:100%;margin-bottom:6px;background:rgba(15,23,42,0.8);color:#e5e7eb;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:8px 10px;font-size:12px;outline:none;" />
       <input id="ld-include" type="text" placeholder="包含关键词（逗号分隔）" style="width:100%;margin-bottom:6px;background:rgba(15,23,42,0.8);color:#e5e7eb;border:1px solid rgba(148,163,184,0.3);border-radius:8px;padding:8px 10px;font-size:12px;outline:none;" />
@@ -512,7 +523,7 @@
             this.inputRangeEnd = wrap.querySelector("#ld-range-end");
 
             this.chkOnlyOp = wrap.querySelector("#ld-only-op");
-            this.chkOnlyImg = wrap.querySelector("#ld-only-img");
+            this.selImgFilter = wrap.querySelector("#ld-img-filter");
             this.inputUsers = wrap.querySelector("#ld-users");
             this.inputInclude = wrap.querySelector("#ld-include");
             this.inputExclude = wrap.querySelector("#ld-exclude");
@@ -535,7 +546,7 @@
             const rangeStart = GM_getValue(K.RANGE_START, DEFAULTS.rangeStart);
             const rangeEnd = GM_getValue(K.RANGE_END, DEFAULTS.rangeEnd);
             const onlyOp = GM_getValue(K.FILTER_ONLY_OP, DEFAULTS.onlyOp);
-            const onlyImg = GM_getValue(K.FILTER_ONLY_IMG, DEFAULTS.onlyImg);
+            const imgFilter = GM_getValue(K.FILTER_IMG, DEFAULTS.imgFilter);
             const users = GM_getValue(K.FILTER_USERS, DEFAULTS.users);
             const include = GM_getValue(K.FILTER_INCLUDE, DEFAULTS.include);
             const exclude = GM_getValue(K.FILTER_EXCLUDE, DEFAULTS.exclude);
@@ -550,7 +561,7 @@
             this.inputRangeStart.value = String(rangeStart);
             this.inputRangeEnd.value = String(rangeEnd);
             this.chkOnlyOp.checked = !!onlyOp;
-            this.chkOnlyImg.checked = !!onlyImg;
+            this.selImgFilter.value = imgFilter || DEFAULTS.imgFilter;
             this.inputUsers.value = users || "";
             this.inputInclude.value = include || "";
             this.inputExclude.value = exclude || "";
@@ -632,13 +643,14 @@
 
             const saveFilters = () => {
                 GM_setValue(K.FILTER_ONLY_OP, !!this.chkOnlyOp.checked);
-                GM_setValue(K.FILTER_ONLY_IMG, !!this.chkOnlyImg.checked);
+                GM_setValue(K.FILTER_IMG, this.selImgFilter.value || "none");
                 GM_setValue(K.FILTER_USERS, this.inputUsers.value || "");
                 GM_setValue(K.FILTER_INCLUDE, this.inputInclude.value || "");
                 GM_setValue(K.FILTER_EXCLUDE, this.inputExclude.value || "");
                 GM_setValue(K.FILTER_MINLEN, clampInt(this.inputMinLen.value, 0, 999999, 0));
             };
-            [this.chkOnlyOp, this.chkOnlyImg].forEach((el) => el.addEventListener("change", saveFilters));
+            [this.chkOnlyOp].forEach((el) => el.addEventListener("change", saveFilters));
+            [this.selImgFilter].forEach((el) => el.addEventListener("change", saveFilters));
             [this.inputUsers, this.inputInclude, this.inputExclude, this.inputMinLen].forEach((el) => el.addEventListener("change", saveFilters));
 
             // Obsidian 配置保存
@@ -664,7 +676,7 @@
             const rangeEnd = clampInt(this.inputRangeEnd.value, 1, 999999, DEFAULTS.rangeEnd);
 
             const onlyOp = !!this.chkOnlyOp.checked;
-            const onlyImg = !!this.chkOnlyImg.checked;
+            const imgFilter = this.selImgFilter.value || DEFAULTS.imgFilter;
             const users = this.inputUsers.value || "";
             const include = this.inputInclude.value || "";
             const exclude = this.inputExclude.value || "";
@@ -680,7 +692,7 @@
                 rangeMode,
                 rangeStart,
                 rangeEnd,
-                filters: { onlyOp, onlyImg, users, include, exclude, minLen },
+                filters: { onlyOp, imgFilter, users, include, exclude, minLen },
                 obsidian: { dir: obsDir, imgMode: obsImgMode, imgDir: obsImgDir, apiUrl: obsApiUrl, apiKey: obsApiKey },
             };
         },
@@ -869,8 +881,11 @@
                 if (!wantUsers.has((p.username || "").toLowerCase())) continue;
             }
 
-            if (filters.onlyImg) {
+            // 图片筛选
+            if (filters.imgFilter === "withImg") {
                 if (!postHasImageFast(p)) continue;
+            } else if (filters.imgFilter === "noImg") {
+                if (postHasImageFast(p)) continue;
             }
 
             if (needTextCheck) {
@@ -891,7 +906,8 @@
         const parts = [];
         parts.push(rangeMode === "range" ? `范围=${rangeStart}-${rangeEnd}` : "范围=全部");
         if (filters.onlyOp) parts.push(`只楼主=@${topic.opUsername || "OP"}`);
-        if (filters.onlyImg) parts.push("只含图");
+        if (filters.imgFilter === "withImg") parts.push("仅含图");
+        if (filters.imgFilter === "noImg") parts.push("仅无图");
         if ((filters.users || "").trim()) parts.push(`用户=${filters.users.trim()}`);
         if ((filters.include || "").trim()) parts.push(`包含=${filters.include.trim()}`);
         if ((filters.exclude || "").trim()) parts.push(`排除=${filters.exclude.trim()}`);
@@ -1157,6 +1173,13 @@ floors: ${posts.length}
             }
 
             const data = await fetchAllPostsDetailed(topicId);
+            // 范围合法性检查
+            if (settings.rangeMode === "range" && settings.rangeStart > settings.rangeEnd) {
+                ui.setStatus("⚠️ 起始楼层不能大于结束楼层", "#facc15");
+                ui.setBusy(false);
+                return;
+            }
+
             const { selected } = applyFilters(data.topic, data.posts, settings);
 
             if (!selected.length) {
@@ -1165,7 +1188,10 @@ floors: ${posts.length}
                 return;
             }
 
-            const imgUrls = collectImageUrlsFromPosts(selected);
+            // none 模式下跳过图片收集以优化性能
+            const imgUrls = settings.obsidian.imgMode === "none"
+                ? []
+                : collectImageUrlsFromPosts(selected);
             let imgMap = {};
 
             if (settings.obsidian.imgMode === "base64" && imgUrls.length > 0) {
