@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Linux.do 帖子导出到 Obsidian
 // @namespace    https://linux.do/
-// @version      4.2.1
+// @version      4.2.2
 // @description  导出 Linux.do 帖子到 Obsidian（支持 Local REST API、图片处理、Callout 格式）
 // @author       ilvsx
 // @license      MIT
@@ -11,6 +11,8 @@
 // @grant        GM_getValue
 // @grant        GM_download
 // @run-at       document-idle
+// @downloadURL https://update.greasyfork.org/scripts/561785/Linuxdo%20%E5%B8%96%E5%AD%90%E5%AF%BC%E5%87%BA%E5%88%B0%20Obsidian.user.js
+// @updateURL https://update.greasyfork.org/scripts/561785/Linuxdo%20%E5%B8%96%E5%AD%90%E5%AF%BC%E5%87%BA%E5%88%B0%20Obsidian.meta.js
 // ==/UserScript==
 
 (function () {
@@ -223,6 +225,19 @@
 
     function sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
+    }
+
+    // ✅ 修复：保留斜杠的路径编码（避免 / 被编码成 %2F 导致 404）
+    function encodePathPreserveSlash(p) {
+        return (p || "")
+            .split("/")
+            .map((seg) => encodeURIComponent(seg))
+            .join("/");
+    }
+
+    // ✅ 修复：规范化 apiUrl（去掉末尾 /，避免双斜杠）
+    function normalizeApiUrl(u) {
+        return String(u || "").replace(/\/+$/g, "");
     }
 
     // -----------------------
@@ -747,8 +762,10 @@
             const obsDir = this.inputObsDir.value || DEFAULTS.obsDir;
             const obsImgMode = this.selObsImgMode.value || DEFAULTS.obsImgMode;
             const obsImgDir = this.inputObsImgDir.value || DEFAULTS.obsImgDir;
-            const obsApiUrl = this.inputObsApiUrl.value || DEFAULTS.obsApiUrl;
-            const obsApiKey = this.inputObsApiKey.value || "";
+
+            // ✅ 规范化 API URL & Key
+            const obsApiUrl = normalizeApiUrl(this.inputObsApiUrl.value || DEFAULTS.obsApiUrl);
+            const obsApiKey = String(this.inputObsApiKey.value || "").trim();
 
             return {
                 rangeMode,
@@ -1027,12 +1044,14 @@
     // Obsidian API
     // -----------------------
     async function writeToObsidian(path, content, settings) {
-        const apiUrl = settings.obsidian.apiUrl || DEFAULTS.obsApiUrl;
-        const apiKey = settings.obsidian.apiKey;
-
+        const apiUrl = normalizeApiUrl(settings.obsidian.apiUrl || DEFAULTS.obsApiUrl);
+        const apiKey = String(settings.obsidian.apiKey || "").trim();
         if (!apiKey) throw new Error("请先配置 Obsidian API Key");
 
-        const response = await fetch(`${apiUrl}/vault/${encodeURIComponent(path)}`, {
+        // ✅ 修复：保留 / 的路径编码，避免 %2F 导致 404
+        const url = `${apiUrl}/vault/${encodePathPreserveSlash(path)}`;
+
+        const response = await fetch(url, {
             method: "PUT",
             headers: {
                 Authorization: `Bearer ${apiKey}`,
@@ -1049,12 +1068,14 @@
     }
 
     async function writeImageToObsidian(path, blob, settings) {
-        const apiUrl = settings.obsidian.apiUrl || DEFAULTS.obsApiUrl;
-        const apiKey = settings.obsidian.apiKey;
-
+        const apiUrl = normalizeApiUrl(settings.obsidian.apiUrl || DEFAULTS.obsApiUrl);
+        const apiKey = String(settings.obsidian.apiKey || "").trim();
         if (!apiKey) throw new Error("请先配置 Obsidian API Key");
 
-        const response = await fetch(`${apiUrl}/vault/${encodeURIComponent(path)}`, {
+        // ✅ 修复：保留 / 的路径编码，避免 %2F 导致 404
+        const url = `${apiUrl}/vault/${encodePathPreserveSlash(path)}`;
+
+        const response = await fetch(url, {
             method: "PUT",
             headers: {
                 Authorization: `Bearer ${apiKey}`,
@@ -1064,15 +1085,17 @@
         });
 
         if (!response.ok) {
-            throw new Error(`图片写入失败: ${response.status}`);
+            const text = await response.text().catch(() => "");
+            throw new Error(`图片写入失败: ${response.status} ${response.statusText} ${text}`);
         }
         return response;
     }
 
+    // ✅ 改进：测试连接改为“写入一个临时文件”（真正验证 API Key + /vault 路由 + 路径编码）
     async function testObsidianConnection() {
         const settings = ui.getSettings();
-        const apiUrl = settings.obsidian.apiUrl || DEFAULTS.obsApiUrl;
-        const apiKey = settings.obsidian.apiKey;
+        const apiUrl = normalizeApiUrl(settings.obsidian.apiUrl || DEFAULTS.obsApiUrl);
+        const apiKey = String(settings.obsidian.apiKey || "").trim();
         const btn = ui.btnTestConnection;
 
         if (!apiKey) {
@@ -1080,45 +1103,50 @@
             return;
         }
 
-        // 保存原始状态
         const originalText = btn.textContent;
         const originalStyle = btn.style.cssText;
 
-        // 测试中状态
         btn.textContent = "连接中...";
         btn.disabled = true;
         btn.style.opacity = "0.7";
 
         try {
-            const response = await fetch(`${apiUrl}/`, {
-                method: "GET",
-                headers: { Authorization: `Bearer ${apiKey}` },
+            const tempPath = "ld-export-connection-test.md";
+            const tempBody = `Local REST API connection test: ${new Date().toISOString()}\n`;
+
+            const res = await fetch(`${apiUrl}/vault/${encodePathPreserveSlash(tempPath)}`, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "text/markdown",
+                },
+                body: tempBody,
             });
 
-            if (response.ok) {
-                // 成功状态
+            if (res.ok) {
                 btn.textContent = "✓ 连接成功";
                 btn.style.background = "#10b981";
                 btn.style.color = "white";
                 btn.style.borderColor = "#10b981";
                 btn.style.opacity = "1";
-                ui.setStatus("✅ Obsidian 连接正常", "#6ee7b7");
-            } else if (response.status === 401) {
-                throw new Error("API Key 无效");
+                ui.setStatus("✅ Obsidian 连接正常（已写入测试文件）", "#6ee7b7");
+            } else if (res.status === 401) {
+                throw new Error("API Key 无效（401）");
+            } else if (res.status === 404) {
+                throw new Error("路由或路径编码问题（404）");
             } else {
-                throw new Error(`HTTP ${response.status}`);
+                const t = await res.text().catch(() => "");
+                throw new Error(`HTTP ${res.status} ${t}`);
             }
         } catch (e) {
-            // 失败状态
-            btn.textContent = "✗ " + e.message;
+            btn.textContent = "✗ " + (e?.message || "连接失败");
             btn.style.background = "#ef4444";
             btn.style.color = "white";
             btn.style.borderColor = "#ef4444";
             btn.style.opacity = "1";
-            ui.setStatus(`❌ 连接失败: ${e.message}`, "#fecaca");
+            ui.setStatus(`❌ 连接失败: ${e?.message || e}`, "#fecaca");
         }
 
-        // 3 秒后恢复
         setTimeout(() => {
             btn.textContent = originalText;
             btn.style.cssText = originalStyle;
